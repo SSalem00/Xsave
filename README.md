@@ -25,6 +25,7 @@ Open twitter.com or x.com and you'll see a **↓** button on any tweet with vide
 - Won't work on private/protected tweets.
 - GIF output is capped at 480px wide / 15fps so files don't get huge. Long videos converted to GIF will still be chunky.
 - If you update the code later, hit the ↻ refresh icon on the extension card.
+- Uses X's public-facing syndication endpoint (the same one the embed widget uses). For personal use — respect X's Terms of Service.
 
 ## Stack
 
