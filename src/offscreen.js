@@ -1,10 +1,12 @@
-// offscreen.js — runs inside the offscreen document.
-// Decodes an MP4 frame-by-frame into a canvas, then encodes a GIF via gifenc.
-// Lives here (not the service worker) because MV3 SWs have no DOM/video element.
+// Decode an MP4 frame-by-frame, encode a GIF with gifenc.
+// Has to live in an offscreen doc because MV3 service workers can't host a <video>.
 
 import { GIFEncoder, quantize, applyPalette } from "./vendor/gifenc.js";
 
-const MAX_WIDTH = 480; // cap output to keep file size manageable
+const DEBUG = false;
+const dlog = (...args) => DEBUG && console.log("[Xdownloader/offscreen]", ...args);
+
+const MAX_WIDTH = 480; // cap output size
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "CONVERT_TO_GIF" || msg.target !== "offscreen") return;
@@ -17,8 +19,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 async function convertToDataUrl(mp4Url) {
+  dlog("convert start", { mp4Url });
+  const t0 = performance.now();
   const frames = await decodeFrames(mp4Url);
+  dlog(`decoded ${frames.length} frames in ${(performance.now() - t0).toFixed(0)}ms`);
+
+  const t1 = performance.now();
   const gifBytes = encodeGif(frames);
+  dlog(`encoded GIF in ${(performance.now() - t1).toFixed(0)}ms`, { bytes: gifBytes.length });
+
   const blob = new Blob([gifBytes], { type: "image/gif" });
   return await blobToDataUrl(blob);
 }
@@ -57,6 +66,7 @@ async function decodeFrames(mp4Url) {
     if (!isFinite(duration) || duration <= 0) {
       throw new Error(`Invalid video duration: ${duration}`);
     }
+    dlog("video loaded", { duration, videoWidth: video.videoWidth, videoHeight: video.videoHeight });
 
     const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
     const w = Math.round(video.videoWidth * scale);
@@ -69,6 +79,7 @@ async function decodeFrames(mp4Url) {
 
     const frameCount = Math.max(1, Math.round(duration * TARGET_FPS));
     const delayMs = Math.round(1000 / TARGET_FPS);
+    dlog("frame plan", { w, h, frameCount, fps: TARGET_FPS });
     const frames = [];
 
     for (let i = 0; i < frameCount; i++) {

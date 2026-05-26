@@ -1,23 +1,16 @@
-// background.js — service worker (MV3)
-// Resolves tweet media URLs via X's public syndication endpoint
-// (the same one twitter.com's embed widget uses).
+// MV3 service worker. Resolves tweet media URLs via the public syndication endpoint.
 
-// ─── Syndication token ───────────────────────────────────────────────────────
-// X's syndication endpoint requires a deterministic per-tweet token computed
-// from the tweet ID. This algorithm is what the embed.js widget uses.
+const DEBUG = false;
+const dlog = (...args) => DEBUG && console.log("[Xdownloader/bg]", ...args);
 
+// Token algorithm copied from twitter's embed.js.
 function syndicationToken(tweetId) {
   return ((Number(tweetId) / 1e15) * Math.PI)
     .toString(6 ** 2)
     .replace(/(0+|\.)/g, "");
 }
 
-// ─── Media URL resolution ────────────────────────────────────────────────────
-
-// In-memory dedupe cache: keyed by tweetId, value is the in-flight or resolved
-// promise. Avoids re-hitting syndication on repeat button clicks. The Map is
-// scoped to the service-worker lifetime — when the SW idles out, it's cleared
-// automatically, which is fine.
+// Dedupe in-flight + resolved calls so repeat clicks don't re-hit syndication.
 const mediaInfoCache = new Map();
 
 function fetchMediaInfo(tweetId) {
@@ -30,28 +23,34 @@ function fetchMediaInfo(tweetId) {
     const url =
       `https://cdn.syndication.twimg.com/tweet-result` +
       `?id=${tweetId}&token=${token}&lang=en`;
+    dlog("syndication request", { tweetId, token, url });
 
     const res = await fetch(url, { headers: { Accept: "application/json" } });
+    dlog("syndication response", { tweetId, status: res.status, ok: res.ok });
     if (!res.ok) throw new Error(`Syndication fetch failed: ${res.status}`);
 
     const json = await res.json();
+    dlog("mediaDetails", json?.mediaDetails);
     return extractBestMedia(json);
   })();
 
   mediaInfoCache.set(tweetId, promise);
-  // Evict failures so the next click can retry instead of replaying the error.
+  // Drop failed entries so retries actually re-fetch.
   promise.catch(() => mediaInfoCache.delete(tweetId));
   return promise;
 }
 
-/**
- * Returns { url, type } for the first video/gif found, or null.
- * type is "video" or "animated_gif" — same vocabulary X uses internally.
- */
+// Returns {url, type} or null if no video/gif. Throws if the response shape
+// doesn't match what we expect (canary for API changes).
 function extractBestMedia(json) {
-  const mediaItems = json?.mediaDetails ?? [];
+  if (!json || typeof json !== "object") {
+    throw new Error("Syndication response not JSON-shaped");
+  }
+  if (!Array.isArray(json.mediaDetails)) {
+    throw new Error("mediaDetails missing or not an array");
+  }
 
-  for (const media of mediaItems) {
+  for (const media of json.mediaDetails) {
     if (media.type !== "video" && media.type !== "animated_gif") continue;
 
     const variants =
@@ -62,13 +61,14 @@ function extractBestMedia(json) {
     if (variants.length === 0) continue;
 
     variants.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-    return { url: variants[0].url, type: media.type };
+    const picked = variants[0];
+    dlog("picked variant", { type: media.type, bitrate: picked.bitrate, url: picked.url });
+    return { url: picked.url, type: media.type };
   }
 
+  dlog("no video/animated_gif media found in tweet");
   return null;
 }
-
-// ─── Offscreen document (for MP4→GIF conversion) ─────────────────────────────
 
 const OFFSCREEN_PATH = "src/offscreen.html";
 
@@ -78,18 +78,20 @@ async function ensureOffscreenDocument() {
 
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_PATH,
-    reasons: ["BLOBS"], // we create blob URLs for the rendered GIF
+    reasons: ["BLOBS"],
     justification: "Decode MP4 frames and encode an animated GIF.",
   });
 }
 
 async function convertToGif(mp4Url, filename) {
+  dlog("convertToGif start", { mp4Url, filename });
   await ensureOffscreenDocument();
   const response = await chrome.runtime.sendMessage({
     type: "CONVERT_TO_GIF",
     target: "offscreen",
     url: mp4Url,
   });
+  dlog("convertToGif response", { ok: response?.ok, error: response?.error });
   if (!response?.ok) {
     throw new Error(response?.error ?? "Conversion failed");
   }
@@ -99,11 +101,11 @@ async function convertToGif(mp4Url, filename) {
     filename: `${filename}.gif`,
     saveAs: false,
   });
+  dlog("convertToGif download dispatched", { filename });
 }
 
-// ─── Message handler ─────────────────────────────────────────────────────────
-
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  dlog("message received", message?.type);
   if (message.type === "FETCH_MEDIA_URL") {
     fetchMediaInfo(message.tweetId)
       .then((info) => sendResponse(info ? info : { url: null }))

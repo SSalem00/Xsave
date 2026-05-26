@@ -1,18 +1,12 @@
-// content.js — injected into twitter.com / x.com
-// Watches for tweets to appear in the DOM, then injects a download button.
+// Content script: watch for tweets, inject a download button into the action bar.
 
-// Flip to true locally when debugging; never commit `true`.
 const DEBUG = false;
-if (DEBUG) console.log("[Xdownloader] content script loaded ✅");
+const dlog = (...args) => DEBUG && console.log("[Xdownloader/content]", ...args);
+dlog("content script loaded");
 
 const PROCESSED_ATTR = "data-twitterdl-processed";
 
-// ─── Utility ────────────────────────────────────────────────────────────────
-
-/**
- * Extract the tweet ID from the current URL or a tweet article element.
- * Twitter embeds the ID in permalinks like /user/status/1234567890
- */
+// Pull the tweet ID out of any /status/<id> link inside the article.
 function getTweetId(article) {
   const link = article.querySelector('a[href*="/status/"]');
   if (!link) return null;
@@ -20,10 +14,7 @@ function getTweetId(article) {
   return match ? match[1] : null;
 }
 
-/**
- * Check whether a tweet article contains video or GIF media.
- * Twitter renders GIFs as looping <video> tags, same as regular videos.
- */
+// Twitter renders GIFs as looping <video> tags, same as regular videos.
 function hasMedia(article) {
   return (
     article.querySelector("video") !== null ||
@@ -31,8 +22,6 @@ function hasMedia(article) {
     article.querySelector('[data-testid="tweetPhoto"] video') !== null
   );
 }
-
-// ─── Button injection ────────────────────────────────────────────────────────
 
 function createDownloadButton(tweetId) {
   const btn = document.createElement("button");
@@ -55,7 +44,7 @@ function createDownloadButton(tweetId) {
 }
 
 function injectButton(article, tweetId) {
-  // Twitter's action bar (like, retweet, reply row) — find it by test ID
+  // The like/retweet/reply row.
   const actionBar = article.querySelector('[role="group"]');
   if (!actionBar) return;
 
@@ -68,8 +57,6 @@ function injectButton(article, tweetId) {
 
   actionBar.appendChild(wrapper);
 }
-
-// ─── Download logic ──────────────────────────────────────────────────────────
 
 async function handleDownload(tweetId, btn) {
   btn.classList.add("twitterdl-loading");
@@ -99,10 +86,6 @@ async function handleDownload(tweetId, btn) {
   }
 }
 
-/**
- * Ask the background service worker to resolve media info ({ url, type })
- * for a given tweet via the X syndication endpoint.
- */
 function fetchMediaInfo(tweetId) {
   return sendMessage({ type: "FETCH_MEDIA_URL", tweetId });
 }
@@ -131,8 +114,6 @@ function sendMessage(payload) {
   });
 }
 
-// ─── Toast notification ──────────────────────────────────────────────────────
-
 function showToast(message) {
   const existing = document.getElementById("twitterdl-toast");
   if (existing) existing.remove();
@@ -145,16 +126,13 @@ function showToast(message) {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ─── MutationObserver — watch for new tweets ─────────────────────────────────
-
 function processTweets() {
-  // Primary selector is the data-testid X currently ships. The role=article
-  // fallback catches the case where they rename or drop the testid — querySelectorAll
-  // dedupes elements that match both, so listing both is safe.
+  // testid is X's current selector; role=article is a fallback if they rename it.
   const articles = document.querySelectorAll(
     `article[data-testid="tweet"]:not([${PROCESSED_ATTR}]),` +
     `article[role="article"]:not([${PROCESSED_ATTR}])`
   );
+  if (articles.length > 0) dlog(`processTweets: ${articles.length} new candidate article(s)`);
 
   articles.forEach((article) => {
     if (!hasMedia(article)) return; // re-check on next mutation when video loads
