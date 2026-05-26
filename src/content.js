@@ -1,6 +1,9 @@
 // content.js — injected into twitter.com / x.com
 // Watches for tweets to appear in the DOM, then injects a download button.
-console.log("[Xdownloader] content script loaded ✅");
+
+// Flip to true locally when debugging; never commit `true`.
+const DEBUG = false;
+if (DEBUG) console.log("[Xdownloader] content script loaded ✅");
 
 const PROCESSED_ATTR = "data-twitterdl-processed";
 
