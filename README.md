@@ -1,8 +1,14 @@
 # XSave
 
-A Chromium based extension that adds a download button to tweets with video, GIFs, or images. Everything runs locally in your browser — no uploading to EzGIF, no pasting links into an app, no extra steps.
+A Chromium based extension that adds a download button to tweets with video, GIFs, or images.
 
-The one thing it does that most don't: Twitter "GIFs" are actually MP4s, and most downloaders just give you that MP4. This one re-encodes them into a real `.gif` file so what you save is what you'd expect.
+**Everything happens on your device.** No data is sent to any server. No third-party sites. No accounts. The media goes directly from X to your computer — XSave never touches it.
+
+The one thing it does that most don't: Twitter "GIFs" are actually MP4s, and most downloaders just give you that MP4 file, or redirect you to EzGIF to convert it yourself. XSave re-encodes them into a real `.gif` right in your browser, with no upload, no waiting, no extra steps.
+
+## Privacy
+
+XSave collects no data whatsoever. It makes no requests to any server other than X's own CDN to fetch the media you clicked. All GIF encoding happens locally using an in-browser encoder. Nothing you download is ever seen by anyone but you. See [PRIVACY.md](PRIVACY.md).
 
 ## Install
 
