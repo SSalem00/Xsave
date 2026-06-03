@@ -45,8 +45,12 @@ function extractAllMedia(json) {
   if (!json || typeof json !== "object") {
     throw new Error("Syndication response not JSON-shaped");
   }
+  if (json.__typename === "TweetTombstone") {
+    return []; // syndication doesn't have this tweet; content script will try DOM fallback
+  }
+  if (!json.mediaDetails) return [];
   if (!Array.isArray(json.mediaDetails)) {
-    throw new Error("mediaDetails missing or not an array");
+    throw new Error("Unexpected mediaDetails shape in syndication response");
   }
 
   const items = [];

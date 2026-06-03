@@ -23,7 +23,7 @@ function hasMedia(article) {
   );
 }
 
-function createDownloadButton(tweetId) {
+function createDownloadButton(tweetId, article) {
   const btn = document.createElement("button");
   btn.className = "twitterdl-btn";
   btn.title = "Download media";
@@ -37,7 +37,7 @@ function createDownloadButton(tweetId) {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
-    handleDownload(tweetId, btn);
+    handleDownload(tweetId, btn, article);
   });
 
   return btn;
@@ -53,17 +53,47 @@ function injectButton(article, tweetId) {
 
   const wrapper = document.createElement("div");
   wrapper.className = "twitterdl-wrapper";
-  wrapper.appendChild(createDownloadButton(tweetId));
+  wrapper.appendChild(createDownloadButton(tweetId, article));
 
   actionBar.appendChild(wrapper);
 }
 
-async function handleDownload(tweetId, btn) {
+// Fallback: pull media URLs directly from the rendered DOM when syndication
+// doesn't have the tweet (tombstone, recent tweet not yet indexed, etc.).
+function extractMediaFromDom(article) {
+  const items = [];
+
+  const video = article.querySelector("video");
+  if (video) {
+    const src = video.src || video.querySelector("source")?.src || "";
+    if (src && !src.startsWith("blob:")) {
+      // tweet_video/ = animated GIF; ext_tw_video/ = regular video
+      const isGif = src.includes("video.twimg.com/tweet_video/");
+      items.push({ type: isGif ? "animated_gif" : "video", url: src });
+    }
+  }
+
+  article.querySelectorAll('[data-testid="tweetPhoto"] img').forEach((img) => {
+    if (!img.src || img.src.startsWith("blob:")) return;
+    const base = img.src.split("?")[0];
+    const extMatch = base.match(/\.([a-z0-9]+)$/i);
+    const ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
+    items.push({ type: "photo", url: `${base}?name=orig`, ext });
+  });
+
+  dlog("DOM fallback items", items);
+  return items;
+}
+
+async function handleDownload(tweetId, btn, article) {
   btn.classList.add("twitterdl-loading");
 
   try {
     const response = await fetchMediaInfo(tweetId);
-    const items = response?.items ?? [];
+    let items = response?.items ?? [];
+    if (items.length === 0 && article) {
+      items = extractMediaFromDom(article);
+    }
     if (items.length === 0) {
       showToast("❌ Could not find downloadable media.");
       return;
@@ -110,6 +140,10 @@ function convertAndDownloadGif(url, filename) {
 
 function sendMessage(payload) {
   return new Promise((resolve, reject) => {
+    if (!chrome.runtime?.id) {
+      reject(new Error("Reload the page to reconnect the extension."));
+      return;
+    }
     chrome.runtime.sendMessage(payload, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
@@ -156,3 +190,16 @@ processTweets();
 
 const observer = new MutationObserver(() => processTweets());
 observer.observe(document.body, { childList: true, subtree: true });
+
+// When the extension is reloaded, chrome.runtime.id goes undefined and this
+// script becomes orphaned. Clean up our buttons so the new script can inject
+// fresh ones once the page is next mutated.
+const orphanCheck = setInterval(() => {
+  if (chrome.runtime?.id) return;
+  clearInterval(orphanCheck);
+  observer.disconnect();
+  document.querySelectorAll(".twitterdl-wrapper").forEach((el) => el.remove());
+  document
+    .querySelectorAll(`[${PROCESSED_ATTR}]`)
+    .forEach((el) => el.removeAttribute(PROCESSED_ATTR));
+}, 1000);
