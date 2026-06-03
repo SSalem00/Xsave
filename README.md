@@ -1,4 +1,4 @@
-# Xdownloader
+# XSave
 
 A Chromium based extension that adds a download button to tweets with video, GIFs, or images.
 
@@ -9,7 +9,7 @@ The one thing it does that most don't: Twitter "GIFs" are actually MP4s, and mos
 
 1. Download the repo — either click the green **Code** button → **Download ZIP** and unzip it, or:
    ```
-   git clone https://github.com/SSalem00/Xdownloader.git
+   git clone https://github.com/SSalem00/Xsave.git
    ```
    Keep the folder somewhere permanent. The browser loads files from it directly.
 

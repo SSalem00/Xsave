@@ -1,7 +1,7 @@
 // MV3 service worker. Resolves tweet media URLs via the public syndication endpoint.
 
 const DEBUG = false;
-const dlog = (...args) => DEBUG && console.log("[Xdownloader/bg]", ...args);
+const dlog = (...args) => DEBUG && console.log("[XSave/bg]", ...args);
 
 // Token algorithm copied from twitter's embed.js.
 function syndicationToken(tweetId) {

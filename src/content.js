@@ -1,7 +1,7 @@
 // Content script: watch for tweets, inject a download button into the action bar.
 
 const DEBUG = false;
-const dlog = (...args) => DEBUG && console.log("[Xdownloader/content]", ...args);
+const dlog = (...args) => DEBUG && console.log("[XSave/content]", ...args);
 dlog("content script loaded");
 
 const PROCESSED_ATTR = "data-twitterdl-processed";
@@ -87,7 +87,7 @@ async function handleDownload(tweetId, btn) {
     btn.classList.add("twitterdl-done");
     setTimeout(() => btn.classList.remove("twitterdl-done"), 2000);
   } catch (err) {
-    console.error("[Xdownloader]", err);
+    console.error("[XSave]", err);
     showToast(`❌ ${err?.message ?? "Download failed"}`);
   } finally {
     btn.classList.remove("twitterdl-loading");

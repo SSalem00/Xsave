@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Xdownloader",
+  "name": "XSave",
   "version": "1.0.0",
-  "description": "Download videos and GIFs from X (Twitter). GIFs are saved as real animated .gif files, not MP4s.",
+  "description": "Download videos, images, and GIFs from X (Twitter). GIFs are saved as real animated .gif files, not MP4s.",
   "permissions": ["downloads", "offscreen"],
   "host_permissions": [
     "https://twitter.com/*",

@@ -4,7 +4,7 @@
 import { GIFEncoder, quantize, applyPalette } from "./vendor/gifenc.js";
 
 const DEBUG = false;
-const dlog = (...args) => DEBUG && console.log("[Xdownloader/offscreen]", ...args);
+const dlog = (...args) => DEBUG && console.log("[XSave/offscreen]", ...args);
 
 const MAX_WIDTH = 480; // cap output size
 
