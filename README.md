@@ -1,9 +1,8 @@
 # XSave
 
-A Chromium based extension that adds a download button to tweets with video, GIFs, or images.
+A Chromium based extension that adds a download button to tweets with video, GIFs, or images. Everything runs locally in your browser — no uploading to EzGIF, no pasting links into an app, no extra steps.
 
 The one thing it does that most don't: Twitter "GIFs" are actually MP4s, and most downloaders just give you that MP4. This one re-encodes them into a real `.gif` file so what you save is what you'd expect.
-
 
 ## Install
 
@@ -25,8 +24,8 @@ Open twitter.com or x.com and you'll see a **↓** button on any tweet with vide
 - GIF output is capped at 480px wide / 15fps so files don't get huge. Long videos converted to GIF will still be chunky.
 - Uses X's public-facing syndication endpoint (the same one the embed widget uses). For personal use — respect X's Terms of Service.
 
+![Download button on a tweet](https://raw.githubusercontent.com/SSalem00/assets/main/screenshot.png)
+
 ## Stack
 
 Plain JS, MV3, no build step. Uses X's public syndication endpoint for media URLs and [gifenc](https://github.com/mattdesl/gifenc) for the GIF encoding (runs in an offscreen document since MV3 service workers can't touch the DOM).
-
-![Download button on a tweet](https://raw.githubusercontent.com/SSalem00/assets/main/screenshot.png)
