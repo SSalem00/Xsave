@@ -35,18 +35,16 @@ function fetchMediaInfo(tweetId) {
   })();
 
   mediaInfoCache.set(tweetId, promise);
-  // Drop failed entries so retries actually re-fetch.
   promise.catch(() => mediaInfoCache.delete(tweetId));
   return promise;
 }
 
-// Returns {type, url, ext?} items. Throws if the response shape is unexpected.
 function extractAllMedia(json) {
   if (!json || typeof json !== "object") {
     throw new Error("Syndication response not JSON-shaped");
   }
   if (json.__typename === "TweetTombstone") {
-    return []; // syndication doesn't have this tweet; content script will try DOM fallback
+    return [];
   }
   if (!json.mediaDetails) return [];
   if (!Array.isArray(json.mediaDetails)) {
@@ -76,6 +74,28 @@ function extractAllMedia(json) {
   return items;
 }
 
+// --- Settings ---
+
+const DEFAULT_SETTINGS = {
+  gifEnabled: true,
+  gifQuality: "medium",
+  filenameTemplate: "{username}_{tweetid}",
+};
+
+const QUALITY_PRESETS = {
+  low:    { maxWidth: 360, fps: 10 },
+  medium: { maxWidth: 480, fps: 15 },
+  high:   { maxWidth: 720, fps: 24 },
+};
+
+function getSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(DEFAULT_SETTINGS, resolve);
+  });
+}
+
+// --- GIF conversion ---
+
 const OFFSCREEN_PATH = "src/offscreen.html";
 
 async function ensureOffscreenDocument() {
@@ -89,13 +109,20 @@ async function ensureOffscreenDocument() {
   });
 }
 
-async function convertToGif(mp4Url, filename) {
+async function convertToGif(mp4Url, filename, tabId, tweetId) {
   dlog("convertToGif start", { mp4Url, filename });
+  const settings = await getSettings();
+  const quality = QUALITY_PRESETS[settings.gifQuality] ?? QUALITY_PRESETS.medium;
+
   await ensureOffscreenDocument();
   const response = await chrome.runtime.sendMessage({
     type: "CONVERT_TO_GIF",
     target: "offscreen",
     url: mp4Url,
+    tabId,
+    tweetId,
+    maxWidth: quality.maxWidth,
+    fps: quality.fps,
   });
   dlog("convertToGif response", { ok: response?.ok, error: response?.error });
   if (!response?.ok) {
@@ -110,8 +137,67 @@ async function convertToGif(mp4Url, filename) {
   dlog("convertToGif download dispatched", { filename });
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+// --- Context menus ---
+
+function createContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "xsave-image",
+      title: "Save with XSave",
+      contexts: ["image"],
+      documentUrlPatterns: ["https://twitter.com/*", "https://x.com/*"],
+    });
+    chrome.contextMenus.create({
+      id: "xsave-video",
+      title: "Save with XSave",
+      contexts: ["video"],
+      documentUrlPatterns: ["https://twitter.com/*", "https://x.com/*"],
+    });
+  });
+}
+
+chrome.runtime.onInstalled.addListener(createContextMenus);
+chrome.runtime.onStartup.addListener(createContextMenus);
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const srcUrl = info.srcUrl;
+  if (!srcUrl) return;
+
+  if (info.menuItemId === "xsave-image") {
+    const base = srcUrl.split("?")[0];
+    const extMatch = base.match(/\.([a-z0-9]+)$/i);
+    const ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
+    chrome.downloads.download({ url: `${base}?name=orig`, filename: `xsave_${Date.now()}.${ext}` });
+  }
+
+  if (info.menuItemId === "xsave-video") {
+    const isGif = srcUrl.includes("video.twimg.com/tweet_video/");
+    const filename = `xsave_${Date.now()}`;
+    if (isGif) {
+      convertToGif(srcUrl, filename, tab?.id, null).catch((err) =>
+        dlog("context menu GIF convert error", err)
+      );
+    } else {
+      chrome.downloads.download({ url: srcUrl, filename: `${filename}.mp4` });
+    }
+  }
+});
+
+// --- Message handler ---
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   dlog("message received", message?.type);
+
+  // Progress relay: offscreen → background → content script
+  if (message.type === "GIF_PROGRESS" && message.tabId) {
+    chrome.tabs.sendMessage(message.tabId, {
+      type: "GIF_PROGRESS",
+      tweetId: message.tweetId,
+      progress: message.progress,
+    }).catch(() => {});
+    return;
+  }
+
   if (message.type === "FETCH_MEDIA_URL") {
     fetchMediaInfo(message.tweetId)
       .then((items) => sendResponse({ items: items ?? [] }))
@@ -132,9 +218,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "DOWNLOAD_AS_GIF") {
-    convertToGif(message.url, message.filename)
-      .then(() => sendResponse({ ok: true }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    const tabId = sender.tab?.id;
+    getSettings().then((settings) => {
+      if (!settings.gifEnabled) {
+        chrome.downloads.download({
+          url: message.url,
+          filename: `${message.filename}.mp4`,
+          saveAs: false,
+        });
+        sendResponse({ ok: true });
+        return;
+      }
+      convertToGif(message.url, message.filename, tabId, message.tweetId)
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
+    });
     return true;
   }
 });

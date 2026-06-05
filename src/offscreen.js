@@ -6,22 +6,22 @@ import { GIFEncoder, quantize, applyPalette } from "./vendor/gifenc.js";
 const DEBUG = false;
 const dlog = (...args) => DEBUG && console.log("[XSave/offscreen]", ...args);
 
-const MAX_WIDTH = 480; // cap output size
-
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "CONVERT_TO_GIF" || msg.target !== "offscreen") return;
 
-  convertToDataUrl(msg.url)
+  const { url, tabId, tweetId, maxWidth = 480, fps = 15 } = msg;
+
+  convertToDataUrl(url, maxWidth, fps, tabId, tweetId)
     .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
     .catch((err) => sendResponse({ ok: false, error: err.message }));
 
   return true; // async response
 });
 
-async function convertToDataUrl(mp4Url) {
-  dlog("convert start", { mp4Url });
+async function convertToDataUrl(mp4Url, maxWidth, fps, tabId, tweetId) {
+  dlog("convert start", { mp4Url, maxWidth, fps });
   const t0 = performance.now();
-  const frames = await decodeFrames(mp4Url);
+  const frames = await decodeFrames(mp4Url, maxWidth, fps, tabId, tweetId);
   dlog(`decoded ${frames.length} frames in ${(performance.now() - t0).toFixed(0)}ms`);
 
   const t1 = performance.now();
@@ -41,9 +41,12 @@ function blobToDataUrl(blob) {
   });
 }
 
-const TARGET_FPS = 15;
+function sendProgress(tabId, tweetId, progress) {
+  if (!tabId) return;
+  chrome.runtime.sendMessage({ type: "GIF_PROGRESS", tabId, tweetId, progress }).catch(() => {});
+}
 
-async function decodeFrames(mp4Url) {
+async function decodeFrames(mp4Url, maxWidth, fps, tabId, tweetId) {
   const res = await fetch(mp4Url);
   if (!res.ok) throw new Error(`MP4 fetch failed: ${res.status}`);
   const mp4Blob = await res.blob();
@@ -68,7 +71,7 @@ async function decodeFrames(mp4Url) {
     }
     dlog("video loaded", { duration, videoWidth: video.videoWidth, videoHeight: video.videoHeight });
 
-    const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+    const scale = Math.min(1, maxWidth / video.videoWidth);
     const w = Math.round(video.videoWidth * scale);
     const h = Math.round(video.videoHeight * scale);
 
@@ -77,9 +80,9 @@ async function decodeFrames(mp4Url) {
     canvas.height = h;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-    const frameCount = Math.max(1, Math.round(duration * TARGET_FPS));
-    const delayMs = Math.round(1000 / TARGET_FPS);
-    dlog("frame plan", { w, h, frameCount, fps: TARGET_FPS });
+    const frameCount = Math.max(1, Math.round(duration * fps));
+    const delayMs = Math.round(1000 / fps);
+    dlog("frame plan", { w, h, frameCount, fps });
     const frames = [];
 
     for (let i = 0; i < frameCount; i++) {
@@ -88,6 +91,11 @@ async function decodeFrames(mp4Url) {
       ctx.drawImage(video, 0, 0, w, h);
       const { data } = ctx.getImageData(0, 0, w, h);
       frames.push({ rgba: new Uint8Array(data), delayMs, w, h });
+
+      // Send progress every 3 frames to avoid flooding the message channel
+      if (tabId && (i % 3 === 0 || i === frameCount - 1)) {
+        sendProgress(tabId, tweetId, (i + 1) / frameCount);
+      }
     }
 
     return frames;
