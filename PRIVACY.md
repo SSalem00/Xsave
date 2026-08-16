@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: June 2026**
+**Last updated: August 2026**
 
 XSave is a browser extension that downloads media from X (Twitter). This policy explains what it does and does not do with your data.
 
@@ -10,7 +10,11 @@ XSave is a browser extension that downloads media from X (Twitter). This policy 
 - XSave does not track your browsing activity.
 - XSave does not send any information to any external server or third party.
 - XSave does not use analytics, telemetry, or crash reporting.
-- XSave does not store anything beyond your current browser session.
+- XSave does not store any downloaded media, browsing history, or tweet content.
+
+## What XSave stores
+
+XSave saves your own settings — GIF conversion on/off, quality preset, and filename template — using your browser's local extension storage. These stay on your device, are never transmitted anywhere, and are removed when you uninstall the extension.
 
 ## What XSave does
 
