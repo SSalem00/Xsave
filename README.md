@@ -1,8 +1,8 @@
-# XSave
+# XFetch
 
 A Chromium extension that adds a download button to tweets with video, GIFs, or images.
 
-Twitter "GIFs" are actually MP4s. Most downloaders hand you that MP4 or send you to EzGIF. XSave converts them to real `.gif` files in-browser — no upload, no extra steps.
+Twitter "GIFs" are actually MP4s. Most downloaders hand you that MP4 or send you to EzGIF. XFetch converts them to real `.gif` files in-browser — no upload, no extra steps.
 
 ## Install
 

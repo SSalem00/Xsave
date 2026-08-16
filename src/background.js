@@ -1,7 +1,7 @@
 // MV3 service worker. Resolves tweet media URLs via the public syndication endpoint.
 
 const DEBUG = false;
-const dlog = (...args) => DEBUG && console.log("[XSave/bg]", ...args);
+const dlog = (...args) => DEBUG && console.log("[XFetch/bg]", ...args);
 
 // Token algorithm copied from twitter's embed.js.
 function syndicationToken(tweetId) {
@@ -143,13 +143,13 @@ function createContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: "xsave-image",
-      title: "Save with XSave",
+      title: "Save with XFetch",
       contexts: ["image"],
       documentUrlPatterns: ["https://twitter.com/*", "https://x.com/*"],
     });
     chrome.contextMenus.create({
       id: "xsave-video",
-      title: "Save with XSave",
+      title: "Save with XFetch",
       contexts: ["video"],
       documentUrlPatterns: ["https://twitter.com/*", "https://x.com/*"],
     });
@@ -167,12 +167,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const base = srcUrl.split("?")[0];
     const extMatch = base.match(/\.([a-z0-9]+)$/i);
     const ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
-    chrome.downloads.download({ url: `${base}?name=orig`, filename: `xsave_${Date.now()}.${ext}` });
+    chrome.downloads.download({ url: `${base}?name=orig`, filename: `xfetch_${Date.now()}.${ext}` });
   }
 
   if (info.menuItemId === "xsave-video") {
     const isGif = srcUrl.includes("video.twimg.com/tweet_video/");
-    const filename = `xsave_${Date.now()}`;
+    const filename = `xfetch_${Date.now()}`;
     if (isGif) {
       convertToGif(srcUrl, filename, tab?.id, null).catch((err) =>
         dlog("context menu GIF convert error", err)

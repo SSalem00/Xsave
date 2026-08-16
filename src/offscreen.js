@@ -4,7 +4,7 @@
 import { GIFEncoder, quantize, applyPalette } from "./vendor/gifenc.js";
 
 const DEBUG = false;
-const dlog = (...args) => DEBUG && console.log("[XSave/offscreen]", ...args);
+const dlog = (...args) => DEBUG && console.log("[XFetch/offscreen]", ...args);
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "CONVERT_TO_GIF" || msg.target !== "offscreen") return;
