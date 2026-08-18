@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "XFetch",
+  "name": "XFetch — X (Twitter) Video, Image & GIF Downloader",
+  "short_name": "XFetch",
   "version": "1.2.0",
   "description": "Download videos, images, and GIFs from X (Twitter). GIFs are saved as real animated .gif files, not MP4s.",
   "permissions": ["downloads", "offscreen", "storage", "contextMenus"],
